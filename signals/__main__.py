@@ -4,7 +4,7 @@ import datetime as dt
 import json
 import sys
 
-from . import house, insiders
+from . import gold as goldmod, house, insiders
 from .score import grade, score_congress, score_insiders
 
 
@@ -20,15 +20,20 @@ def build(days_congress: int, days_insider: int, top: int, today: dt.date) -> di
         notes.append(f"House data unavailable: {e}")
     ranked.sort(key=lambda x: -x["score"])
     gold = [r for r in ranked if r.get("gold")]
-    return {"date": str(today), "top": ranked[: max(top, 5)], "gold": gold[:3], "notes": notes, "candidates": len(ranked)}
+    try:
+        gold_lines = goldmod.briefing(goldmod.fetch_daily())
+    except Exception as e:
+        gold_lines = [f"GOLD: price data unavailable today ({e})"]
+    return {"date": str(today), "gold_briefing": gold_lines, "top": ranked[: max(top, 5)], "gold": gold[:3],
+            "notes": notes, "candidates": len(ranked)}
 
 
 def render(rep: dict) -> str:
-    out = [f"Trade signals for {dt.date.fromisoformat(rep['date']):%a %d %b %Y} ({rep['candidates']} candidates screened)", ""]
+    out = rep["gold_briefing"] + ["", f"STOCK SIGNALS ({rep['candidates']} candidates screened from insider and Congress filings)", ""]
     for i, s in enumerate(rep["top"], 1):
         out.append(f"{i}. {s['ticker']} - {s['asset'][:40]} | {s['source']} | {grade(s['score'])} ({s['score']})")
         out += [f"   - {w}" for w in s["why"]] + [f"   {s['links'][0]}", ""]
-    out.append("Gold-related: " + ("; ".join(f"{g['ticker']} ({g['source']}, {grade(g['score'])})" for g in rep["gold"])
+    out.append("Gold-related insider/Congress trades: " + ("; ".join(f"{g['ticker']} ({g['source']}, {grade(g['score'])})" for g in rep["gold"])
                                    if rep["gold"] else "none in today's filings"))
     out += [f"Note: {n}" for n in rep["notes"]]
     out.append("Research leads, not financial advice. Congress trades are disclosed up to 45 days late.")

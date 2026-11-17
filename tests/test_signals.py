@@ -60,3 +60,10 @@ def test_congress_cluster_beats_single():
     trades = [{**base, "ticker": "AAA", "member": "A"}, {**base, "ticker": "AAA", "member": "B"}, {**base, "ticker": "BBB", "member": "C"}]
     r = score_congress(trades, today)
     assert r[0]["ticker"] == "AAA" and r[0]["score"] > r[1]["score"] + 20
+
+
+def test_gold_briefing_on_synthetic_prices():
+    from gold_agent.data import synthetic
+    from signals.gold import briefing
+    lines = briefing(synthetic(n=400))
+    assert lines[0].startswith("GOLD (XAU/USD)") and any("Breakout levels" in l for l in lines)
