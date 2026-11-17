@@ -114,7 +114,7 @@ def grade_one(idea: dict, bars: pd.DataFrame, max_hold_h: int = 120) -> dict:
 
 
 def grade() -> int:
-    if not IDEAS.exists():
+    if not IDEAS.exists() or not IDEAS.read_text().strip():
         print("TRACK RECORD: no ideas recorded yet")
         return 0
     cache = json.loads(CACHE.read_text())

@@ -61,3 +61,10 @@ def test_add_and_grade_roundtrip(tmp_path, monkeypatch):
     (tmp_path / "journal/.h1_cache.json").write_text(json.dumps(
         {"XAU/USD": {**{k: b[k].tolist() for k in ("open", "high", "low", "close")}, "index": [str(t) for t in b.index]}}))
     assert journal.grade() == 0
+
+
+def test_grade_empty_journal(tmp_path, monkeypatch):
+    f = tmp_path / "ideas.jsonl"
+    f.write_text("")
+    monkeypatch.setattr(journal, "IDEAS", f)
+    assert journal.grade() == 0
