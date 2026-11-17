@@ -24,7 +24,11 @@ def build(days_congress: int, days_insider: int, top: int, today: dt.date) -> di
     ranked.sort(key=lambda x: -x["score"])
     gold = [r for r in ranked if r.get("gold")]
     try:
-        gold_lines = goldmod.briefing(goldmod.fetch_daily())
+        try:
+            df4 = goldmod.fetch_4h()[0]
+        except Exception:
+            df4 = None
+        gold_lines = goldmod.briefing(goldmod.fetch_daily(), df4)
     except Exception as e:
         gold_lines = [f"GOLD: price data unavailable today ({e})"]
     return {"date": str(today), "gold_briefing": gold_lines, "top": ranked[: max(top, 5)], "gold": gold[:3],
@@ -32,12 +36,13 @@ def build(days_congress: int, days_insider: int, top: int, today: dt.date) -> di
 
 
 def render(rep: dict) -> str:
-    out = rep["gold_briefing"] + ["", f"STOCK SIGNALS ({rep['candidates']} candidates screened from insider and Congress filings)", ""]
+    out = rep["gold_briefing"] + ["", f"STOCKS (top 5 of {rep['candidates']} insider/Congress buys)"]
     for i, s in enumerate(rep["top"], 1):
-        out.append(f"{i}. {s['ticker']} - {s['asset'][:40]} | {s['source']} | {grade(s['score'])} ({s['score']})")
-        out += [f"   - {w}" for w in s["why"]] + [f"   {s['links'][0]}", ""]
-    out.append("Gold-related insider/Congress trades: " + ("; ".join(f"{g['ticker']} ({g['source']}, {grade(g['score'])})" for g in rep["gold"])
-                                   if rep["gold"] else "none in today's filings"))
+        caution = " | CAUTION" if any(w.startswith("CAUTION") for w in s["why"]) else ""
+        out.append(f"{i}. {s['ticker']} {grade(s['score'])} - {s['source']}: {s['why'][0]}, {s['why'][1]}{caution}")
+        out.append(f"   {s['links'][0]}")
+    if rep["gold"]:
+        out.append("Gold-related: " + "; ".join(f"{g['ticker']} ({g['source']}, {grade(g['score'])})" for g in rep["gold"]))
     out += [f"Note: {n}" for n in rep["notes"]]
     out.append("Research leads, not financial advice. Congress trades are disclosed up to 45 days late.")
     return "\n".join(out)

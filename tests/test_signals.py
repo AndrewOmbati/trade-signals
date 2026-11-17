@@ -65,8 +65,8 @@ def test_congress_cluster_beats_single():
 def test_gold_briefing_on_synthetic_prices():
     from gold_agent.data import synthetic
     from signals.gold import briefing
-    lines = briefing(synthetic(n=400))
-    assert lines[0].startswith("GOLD (XAU/USD)") and any("Breakout levels" in l for l in lines)
+    lines = briefing(synthetic(n=400), None)
+    assert lines[0].startswith("GOLD (XAU/USD)") and any("Triggers on a daily close" in l or "DAILY SIGNAL" in l for l in lines)
 
 
 def test_fetch_purchases_time_budget(monkeypatch):
