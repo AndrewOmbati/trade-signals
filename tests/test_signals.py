@@ -78,3 +78,14 @@ def test_fetch_purchases_time_budget(monkeypatch):
     assert len(rows) == 20 and note == "scanned all 20 Form 4 filings"
     rows, note = ins.fetch_purchases(days=1, today=dt.date(2026, 11, 18), budget_s=-1)
     assert rows == [] and "0 of 20" in note
+
+
+def test_offering_and_penny_buys_are_penalised():
+    today = dt.date(2026, 11, 17)
+    base = parse_form4(FORM4, "u")[0]
+    real = [base, {**base, "insider": "Roe John", "roles": ["Director"]}]
+    ipo = [{**b, "ticker": "IPO", "owned_after": b["shares"]} for b in real]          # no prior stake
+    penny = [{**b, "ticker": "PNY", "price": 1.0, "value": b["shares"] * 1.0} for b in real]
+    r = {x["ticker"]: x for x in score_insiders(real + ipo + penny, today)}
+    assert r["NEM"]["score"] > r["IPO"]["score"] + 40 and r["NEM"]["score"] > r["PNY"]["score"] + 15
+    assert any("IPO" in w for w in r["IPO"]["why"]) and "new position" in r["IPO"]["why"]

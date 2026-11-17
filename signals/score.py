@@ -56,18 +56,30 @@ def score_insiders(buys: list[dict], today: dt.date) -> list[dict]:
         value = sum(b["value"] for b in bs)
         roles = {r for b in bs for r in b["roles"]}
         top = any(re.search(r"\b(CEO|Chief Executive|CFO|Chief Financial|President|Chair)", r, re.I) for r in roles)
-        # how much each buyer added relative to what they already held
-        pct = max((b["shares"] / max(b["owned_after"] - b["shares"], 1) for b in bs), default=0)
+        # How much each buyer added relative to what they already held. Buyers who held ~nothing before are
+        # usually taking part in an IPO, spin-off or private placement, not choosing to buy on the open market.
+        priors = [b["owned_after"] - b["shares"] for b in bs]
+        new_pos = sum(1 for p in priors if p <= 0.05 * max(b["owned_after"] for b in bs)) / len(bs)
+        pct = max((b["shares"] / p for b, p in zip(bs, priors) if p > 0), default=0)
+        price = bs[-1]["price"]
         age = (today - max(b["tx_date"] for b in bs)).days
         s = 30 * (len(people) - 1)                          # cluster buying: several insiders at once
         s += 10 * math.log10(max(value, 10_000) / 10_000)    # $10k -> 0, $100k -> 10, $1m -> 20
         s += 15 if top else 5 if roles - {"10% owner"} else 0
-        s += min(15, 15 * pct)                               # grew their stake meaningfully
+        s += min(15, 15 * pct)                               # grew an existing stake meaningfully
         s += max(0, 10 - age)
         s -= 15 if all(b["plan_10b5_1"] for b in bs) else 0  # pre-scheduled plan buys carry less information
+        flags = []
+        if new_pos >= 0.5:
+            s = s * 0.3 - 10
+            flags.append("most buyers had no prior stake: likely IPO/offering/placement purchase, not open-market conviction")
+        if price < 2:
+            s -= 20
+            flags.append("penny stock (< $2)")
+        stake = "new position" if pct == 0 else f"stake increase up to {pct:.0%}"
         why = [f"{len(people)} insider(s) bought" + (f": {', '.join(sorted(people))[:80]}" if len(people) <= 3 else ""),
-               f"${value:,.0f} at ~${bs[-1]['price']:,.2f}", f"roles: {', '.join(sorted(roles)) or 'n/a'}",
-               f"stake increase up to {pct:.0%}", f"latest buy {max(b['tx_date'] for b in bs):%b %d}"]
+               f"${value:,.0f} at ~${price:,.2f}", f"roles: {', '.join(sorted(roles)) or 'n/a'}", stake,
+               f"latest buy {max(b['tx_date'] for b in bs):%b %d}"] + [f"CAUTION: {f}" for f in flags]
         out.append({"ticker": tk, "asset": bs[0]["company"], "source": "Insider", "score": round(s, 1), "why": why,
                     "links": [bs[0]["url"]], "gold": tk in GOLD_TICKERS})
     return sorted(out, key=lambda x: -x["score"])
