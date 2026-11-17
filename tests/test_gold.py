@@ -57,3 +57,30 @@ def test_pullback_backtest_runs_and_respects_one_position():
 def test_briefing_with_4h():
     lines = gold.briefing(synthetic(n=400), h4())
     assert lines[0].startswith("GOLD (XAU/USD)") and any(l.strip().startswith("- 4H trend") for l in lines)
+
+
+def h1(n=24 * 120, seed=9):
+    d = synthetic(n=n, seed=seed, start_price=3800)
+    d.index = pd.date_range("2026-06-01 00:00", periods=n, freq="1h", tz="UTC")
+    return clean(d)
+
+
+def test_london_plan_respects_trend_and_width():
+    from signals.gold_setups import LondonParams, london_context, london_plan
+    df, datr, dema, dclose = london_context(h1())
+    d = datr.dropna().index[-5]
+    g = df[df.index.normalize() == d]
+    up = london_plan(g, d, datr, dema * 0, dclose, LondonParams(min_w=0, max_w=99))  # EMA 0 -> uptrend
+    assert [o["side"] for o in up["orders"]] == [1]
+    o = up["orders"][0]
+    assert o["entry"] > up["hi"] and o["stop"] == up["lo"]
+    assert abs((o["target"] - o["entry"]) - 2 * (o["entry"] - o["stop"])) < 1e-9
+    assert "skip" in london_plan(g, d, datr, dema, dclose, LondonParams(min_w=0, max_w=0))
+
+
+def test_london_backtest_and_today():
+    from signals.gold_setups import LondonParams, london_backtest, london_today
+    data = h1()
+    t = london_backtest(data, LondonParams(min_w=0, max_w=99, trend=False))
+    assert len(t) > 10 and t.R.notna().all() and set(t.why) <= {"stop", "target", "time"}
+    assert london_today(data, pd.Timestamp("2026-09-26 07:05", tz="Europe/London")) == []  # Saturday

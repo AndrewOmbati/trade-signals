@@ -7,11 +7,16 @@ Two setups, prices from Twelve Data:
 |---|---|---|---|
 | Trend breakout (`gold_agent`) | daily | ~5 a year | 2007-2026: 96 trades, 44% win, PF 1.67; since 2021 PF 2.1 |
 | Trend pullback (`signals/gold_pullback.py`) | 4-hour | ~3 a month | Mar 2024-Nov 2026: 93 trades, 50% win, +0.27R avg, PF 1.58; out-of-sample PF 1.78 |
+| London open breakout, with daily trend (`signals/gold_setups.py`) | 1-hour | ~4-5 a month | Mar 2024-Nov 2026: 166 trades, 52% win, +0.14R avg, PF 1.38; out-of-sample PF 1.36; still PF 1.22 at 2.5x costs |
+
+Rejected after testing: 4H range fade (lost in every variant), London breakout without the trend filter (break-even),
+4H pullback on 1-hour bars (lost).
 
 The pullback setup was tuned on the first 60% of history and checked on the last 40% (`research/gold_pullback_backtest.py`).
 The same rules on 1-hour bars lost money, so they are not used. 2.7 years of 4H data is mostly a gold bull market.
 
 - `python -m signals` — morning report: gold briefing (levels, signals, WATCH when near a trigger) then 5 stock signals
+- `python -m signals.gold_london` — 07:05 London: today's breakout pending orders, if the day qualifies
 - `python -m signals.gold_watch` — 4-hourly check: alerts only on a new 4H setup or when gold moves near a daily trigger
 
 # Insider and congressional purchases
