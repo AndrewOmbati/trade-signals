@@ -11,7 +11,10 @@ from .score import grade, score_congress, score_insiders
 def build(days_congress: int, days_insider: int, top: int, today: dt.date) -> dict:
     notes, ranked = [], []
     try:
-        ranked += score_insiders(insiders.fetch_purchases(days_insider, today), today)
+        buys, cov = insiders.fetch_purchases(days_insider, today)
+        ranked += score_insiders(buys, today)
+        if "time limit" in cov:
+            notes.append(cov)
     except Exception as e:  # keep going with the other source
         notes.append(f"Insider data unavailable: {e}")
     try:
@@ -43,7 +46,7 @@ def render(rep: dict) -> str:
 def main(argv=None):
     p = argparse.ArgumentParser(prog="signals")
     p.add_argument("--congress-days", type=int, default=30)
-    p.add_argument("--insider-days", type=int, default=2, help="business days of Form 4 filings to scan")
+    p.add_argument("--insider-days", type=int, default=1, help="business days of Form 4 filings to scan")
     p.add_argument("--top", type=int, default=5)
     p.add_argument("--json", action="store_true")
     a = p.parse_args(argv)

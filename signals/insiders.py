@@ -3,7 +3,9 @@ set the SEC_CONTACT environment variable (an email address)."""
 import datetime as dt
 import os
 import re
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 import xml.etree.ElementTree as ET
 
 import requests
@@ -20,14 +22,38 @@ def _session() -> requests.Session:
     return s
 
 
+class _RateLimiter:
+    """Shared across threads: at most `rate` requests per second (the SEC allows 10)."""
+
+    def __init__(self, rate: float = 8.0):
+        self.gap, self.next, self.lock = 1.0 / rate, 0.0, threading.Lock()
+
+    def wait(self):
+        with self.lock:
+            now = time.monotonic()
+            t = max(now, self.next)
+            self.next = t + self.gap
+        time.sleep(max(0.0, t - now))
+
+
+_limit = _RateLimiter()
+
+
 def _get(s: requests.Session, url: str) -> requests.Response:
+    r = None
     for attempt in range(4):
-        r = s.get(url, timeout=30)
-        time.sleep(0.12)  # stay under the SEC's 10 requests/second limit
+        _limit.wait()
+        try:
+            r = s.get(url, timeout=30)
+        except requests.RequestException:
+            time.sleep(2 ** attempt)
+            continue
         if r.status_code in (429, 503):
             time.sleep(2 ** attempt)
             continue
         return r
+    if r is None:
+        raise requests.ConnectionError(url)
     return r
 
 
@@ -89,21 +115,47 @@ def parse_form4(xml_text: str, url: str = "") -> list[dict]:
     return out
 
 
-def fetch_purchases(days: int = 2, today: dt.date | None = None) -> list[dict]:
-    """Purchases from Form 4s filed on the last `days` business days."""
+def _one(s: requests.Session, f: str) -> list[dict]:
+    try:
+        r = _get(s, f"{ARCHIVES}/{f}")
+    except requests.RequestException:
+        return []
+    m = re.search(r"<XML>\s*(.*?)\s*</XML>", r.text, re.S) if r.ok else None
+    if not m:
+        return []
+    try:
+        return parse_form4(m.group(1), f"{ARCHIVES}/{f}")
+    except (ET.ParseError, ValueError):
+        return []
+
+
+def fetch_purchases(days: int = 1, today: dt.date | None = None, budget_s: float = 480, workers: int = 8) -> tuple[list[dict], str]:
+    """Purchases from Form 4s filed on the last `days` business days.
+    Stops after `budget_s` seconds so a scheduled run always finishes; returns (rows, coverage note)."""
     s, today = _session(), today or dt.date.today()
-    rows, d, seen = [], today - dt.timedelta(days=1), 0
+    files, d, seen = [], today - dt.timedelta(days=1), 0
     while seen < days:
         if d.weekday() < 5:
             seen += 1
-            for f in form4_filings(s, d):
-                r = _get(s, f"{ARCHIVES}/{f}")
-                m = re.search(r"<XML>\s*(.*?)\s*</XML>", r.text, re.S) if r.ok else None
-                if not m:
-                    continue
-                try:
-                    rows += parse_form4(m.group(1), f"{ARCHIVES}/{f}")
-                except ET.ParseError:
-                    continue
+            files += form4_filings(s, d)
         d -= dt.timedelta(days=1)
-    return rows
+    files = sorted(set(files))
+    deadline = time.monotonic() + budget_s
+    skipped = 0
+    lock = threading.Lock()
+
+    def task(f):
+        nonlocal skipped
+        if time.monotonic() > deadline:
+            with lock:
+                skipped += 1
+            return []
+        return _one(s, f)
+
+    rows = []
+    with ThreadPoolExecutor(workers) as ex:
+        for got in ex.map(task, files):
+            rows += got
+    if skipped:
+        return rows, f"insider scan hit its time limit: {len(files) - skipped} of {len(files)} Form 4 filings checked"
+    return rows, f"scanned all {len(files)} Form 4 filings"

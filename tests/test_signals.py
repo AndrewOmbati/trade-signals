@@ -67,3 +67,14 @@ def test_gold_briefing_on_synthetic_prices():
     from signals.gold import briefing
     lines = briefing(synthetic(n=400))
     assert lines[0].startswith("GOLD (XAU/USD)") and any("Breakout levels" in l for l in lines)
+
+
+def test_fetch_purchases_time_budget(monkeypatch):
+    import signals.insiders as ins
+    monkeypatch.setenv("SEC_CONTACT", "test@example.com")
+    monkeypatch.setattr(ins, "form4_filings", lambda s, d: [f"f{i}" for i in range(20)])
+    monkeypatch.setattr(ins, "_one", lambda s, f: [{"ticker": f}])
+    rows, note = ins.fetch_purchases(days=1, today=dt.date(2026, 11, 18), budget_s=60)
+    assert len(rows) == 20 and note == "scanned all 20 Form 4 filings"
+    rows, note = ins.fetch_purchases(days=1, today=dt.date(2026, 11, 18), budget_s=-1)
+    assert rows == [] and "0 of 20" in note
