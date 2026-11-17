@@ -14,7 +14,11 @@ URL = "https://api.twelvedata.com/time_series"
 
 
 def _fetch(interval: str, bars: int) -> pd.DataFrame:
-    r = requests.get(URL, params={"symbol": "XAU/USD", "interval": interval, "outputsize": bars, "timezone": "UTC"}, timeout=30)
+    return _fetch_symbol("XAU/USD", interval, bars)
+
+
+def _fetch_symbol(symbol: str, interval: str, bars: int) -> pd.DataFrame:
+    r = requests.get(URL, params={"symbol": symbol, "interval": interval, "outputsize": bars, "timezone": "UTC"}, timeout=30)
     j = r.json()
     if j.get("status") != "ok":
         raise RuntimeError(j.get("message", f"HTTP {r.status_code}"))
@@ -25,6 +29,7 @@ def _fetch(interval: str, bars: int) -> pd.DataFrame:
 
 def fetch_daily(bars: int = 400) -> pd.DataFrame:
     df = _fetch("1day", bars)
+    df = df[df.index.dayofweek < 5]  # the feed includes flat Saturday/Sunday bars; gold doesn't trade then
     if df.index[-1].date() >= dt.datetime.now(dt.timezone.utc).date():
         df = df.iloc[:-1]  # today's bar is still forming; the rules only use completed bars
     return df
