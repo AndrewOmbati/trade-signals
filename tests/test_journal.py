@@ -16,13 +16,14 @@ def idea(**kw):
 
 
 def test_validate_rules():
-    good = [idea()] * 4 + [idea(symbol="EUR/USD", side="BUY", entry_type="market", entry=1.1, stop=1.096, target=1.107)]
+    good = [idea()] * 2
     assert journal.validate(good, CTX) == []
-    assert any("at least 5" in e for e in journal.validate(good[:4], CTX))
+    assert any("at least 2" in e for e in journal.validate(good[:1], CTX))
     assert any("stop must be above" in e for e in journal.validate([idea(stop=3840.0)] + good[1:], CTX))
     assert any("reward:risk" in e for e in journal.validate([idea(target=3850.0)] + good[1:], CTX))
     assert any("limit must be above" in e for e in journal.validate([idea(entry=3840.0, stop=3870.0, target=3780.0)] + good[1:], CTX))
-    assert any("XAU/USD" in e for e in journal.validate([idea(symbol="EUR/USD", side="BUY", entry_type="market", entry=1.1, stop=1.096, target=1.107)] * 5, CTX))
+    fx = idea(symbol="EUR/USD", side="BUY", entry_type="market", entry=1.1, stop=1.096, target=1.107)
+    assert any("gold only" in e for e in journal.validate(good + [fx], CTX))
 
 
 def bars(rows):

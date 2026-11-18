@@ -11,7 +11,7 @@ from gold_agent import indicators as ind
 from . import gold
 from .gold_pullback import clean
 
-SYMBOLS = ["XAU/USD", "EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD"]
+SYMBOLS = ["XAU/USD"]  # gold only (owner's choice, 2026-11-18)
 CACHE = "journal/.h1_cache.json"  # scratch, not committed
 
 

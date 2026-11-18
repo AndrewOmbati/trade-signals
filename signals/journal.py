@@ -11,16 +11,17 @@ import pandas as pd
 
 IDEAS = Path("journal/ideas.jsonl")
 CACHE = Path("journal/.h1_cache.json")
+MIN_IDEAS = 2
 FIELDS = {"symbol", "side", "entry_type", "entry", "stop", "target", "grade", "basis", "thesis", "invalidation", "catalyst"}
 
 
 def validate(ideas: list[dict], context: dict) -> list[str]:
     """Return a list of problems (empty = OK)."""
     errs = []
-    if len(ideas) < 5:
-        errs.append(f"need at least 5 ideas, got {len(ideas)}")
-    if not any(i.get("symbol") == "XAU/USD" for i in ideas):
-        errs.append("include at least one XAU/USD idea")
+    if len(ideas) < MIN_IDEAS:
+        errs.append(f"need at least {MIN_IDEAS} ideas, got {len(ideas)}")
+    if any(i.get("symbol") != "XAU/USD" for i in ideas):
+        errs.append("gold only: every idea must be XAU/USD")
     mk = {m["symbol"]: m for m in context.get("markets", [])}
     for n, i in enumerate(ideas, 1):
         tag = f"idea {n} ({i.get('symbol')})"
@@ -124,10 +125,16 @@ def grade() -> int:
         g = grade_one(i, _bars(cache, i["symbol"])) if i["symbol"] in cache else {"status": "no data", "R": None}
         rows.append({**i, **g})
     df = pd.DataFrame(rows)
+    skipped = int((df.status == "no data").sum())  # e.g. old FX ideas once only gold prices are fetched
+    df = df[df.status != "no data"]
+    if df.empty:
+        print(f"TRACK RECORD: no ideas with price data ({skipped} skipped)")
+        return 0
     done = df[df.status.isin(["win", "loss", "time"])]
     lines = [f"TRACK RECORD ({len(df)} ideas since {df.created_utc.min()[:10]}): "
              f"{(df.status == 'win').sum()} won, {(df.status == 'loss').sum()} lost, {(df.status == 'time').sum()} timed out, "
-             f"{(df.status == 'open').sum()} open, {(df.status == 'expired').sum()} never filled, {(df.status == 'pending').sum()} pending"]
+             f"{(df.status == 'open').sum()} open, {(df.status == 'expired').sum()} never filled, {(df.status == 'pending').sum()} pending"
+             + (f" ({skipped} ideas without price data not counted)" if skipped else "")]
     if len(done):
         lines.append(f"   closed trades: avg {done.R.mean():+.2f}R, total {done.R.sum():+.1f}R, win rate {(done.R > 0).mean():.0%}")
         for g, d in done.groupby("grade"):
