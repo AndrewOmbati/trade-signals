@@ -10,7 +10,9 @@ Two setups, prices from Twelve Data:
 | London open breakout, with daily trend (`signals/gold_setups.py`) | 1-hour | ~4-5 a month | Mar 2024-Nov 2026: 166 trades, 52% win, +0.14R avg, PF 1.38; out-of-sample PF 1.36; still PF 1.22 at 2.5x costs |
 
 Rejected after testing: 4H range fade (lost in every variant), London breakout without the trend filter (break-even),
-4H pullback on 1-hour bars (lost).
+4H pullback on 1-hour bars (lost),
+prior-day breakout/breakdown with the daily trend (`research/gold_breakdown_backtest.py`: strong 2024-26 but
+break-even since 2007, and shorts lost).
 
 The pullback setup was tuned on the first 60% of history and checked on the last 40% (`research/gold_pullback_backtest.py`).
 The same rules on 1-hour bars lost money, so they are not used. 2.7 years of 4H data is mostly a gold bull market.
